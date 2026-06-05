@@ -3,25 +3,27 @@ on: push
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python 3.9
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.9"
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pyqt5 pyinstaller
+      - name: Install
+        run: pip install pyqt5 pyinstaller
 
-      - name: Build EXE
+      - name: Download ffplay
         run: |
-          pyinstaller -wF "1时段定时播放器.py"
+          curl -L -o ffplay.exe https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffplay-master-latest-win64-gpl.exe
 
-      - name: Upload File
-        uses: actions/upload-artifact@v4
+      - name: Build
+        run: pyinstaller -wF "1时段定时播放器.py"
+
+      - uses: actions/upload-artifact@v4
         with:
-          name: MyExe
+          name: MyPlayer
           path: dist/*.exe
