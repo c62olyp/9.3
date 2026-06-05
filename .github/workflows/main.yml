@@ -3,29 +3,25 @@ on: push
 jobs:
   build:
     runs-on: windows-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true  # 解决Node.js 20警告
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Setup Python 3.9
         uses: actions/setup-python@v5
         with:
           python-version: "3.9"
 
-      - name: Install pip dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install pyqt5 pyinstaller
 
-      - name: Build single exe
+      - name: Build EXE
         run: |
-          # 重点：把下面的文件名改成你仓库里实际的Python文件名（复制粘贴！）
-          pyinstaller -F "1时段定时播放器.py" --hidden-import PyQt5.sip
+          pyinstaller -wF "1时段定时播放器.py"
 
-      - name: Upload artifact
+      - name: Upload File
         uses: actions/upload-artifact@v4
         with:
-          name: 定时播放器成品EXE
+          name: MyExe
           path: dist/*.exe
