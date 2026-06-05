@@ -16,7 +16,7 @@ class TimeAudioPlayer:
     def __init__(self, root):
         self.root = root
         self.root.title("三时段定时播放器")
-        self.root.geometry("700x550")
+        self.root.geometry("720x580")
         self.root.resizable(True, True)
         self.root.configure(bg="#FFF5E6")
         self.ini_file = "config.ini"
@@ -52,6 +52,7 @@ class TimeAudioPlayer:
             return os.path.join(os.path.abspath("."), "ffplay.exe")
 
         self.ff_bin = get_ffplay_path()
+        print("ffplay路径:", self.ff_bin)
 
         self._audio_cache = {"p1": [], "p2": [], "p3": []}
         self._last_slot = -1
@@ -113,7 +114,7 @@ class TimeAudioPlayer:
         self.root.protocol("WM_DELETE_WINDOW", self.on_close_window)
         self.time_thread = threading.Thread(target=self.time_detect_loop, daemon=True)
         self.time_thread.start()
-        self.root.after(350, self.start_play)
+        self.root.after(400, self.start_play)
 
     def get_run_cmd(self):
         exe_path = os.path.abspath(sys.argv[0])
@@ -126,7 +127,7 @@ class TimeAudioPlayer:
         try:
             key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0,
                                  winreg.KEY_READ)
-            winreg.QueryValueEx(key, APP_REG_NAME)
+            val = winreg.QueryValueEx(key, APP_REG_NAME)
             winreg.CloseKey(key)
             return True
         except:
@@ -139,16 +140,26 @@ class TimeAudioPlayer:
             if is_open:
                 winreg.SetValueEx(key, APP_REG_NAME, 0, winreg.REG_SZ, self.get_run_cmd())
             else:
-                winreg.DeleteValue(key, APP_REG_NAME)
+                try:
+                    winreg.DeleteValue(key, APP_REG_NAME)
+                except:
+                    pass
             winreg.CloseKey(key)
         except Exception as e:
-            self.status_var.set("自启设置异常")
+            self.safe_status("自启设置异常")
 
     def on_auto_start_change(self, *args):
         self.set_auto_start_reg(self.auto_start_var.get())
 
+    def safe_status(self, msg):
+        try:
+            self.root.after(0, lambda: self.status_var.set(msg))
+        except:
+            pass
+
     def on_close_window(self):
         self.running = False
+        self.is_playing = False
         self.kill_ff()
         self.root.destroy()
 
@@ -456,13 +467,13 @@ class TimeAudioPlayer:
         s3 = self.time2sec(self.get_time_str(self.t3h, self.t3m, self.t3s))
         e3 = self.time2sec(self.get_time_str(self.t3eh, self.t3em, self.t3es))
 
-        def in_range(now, s, e):
+        def in_range(now_s, s, e):
             if s == -1 or e == -1:
                 return False
             if e > s:
-                return s <= now < e
+                return s <= now_s < e
             else:
-                return now >= s or now < e
+                return now_s >= s or now_s < e
 
         if in_range(ns, s1, e1):
             return 1
@@ -493,6 +504,7 @@ class TimeAudioPlayer:
         if self.ffplay_process:
             try:
                 self.ffplay_process.terminate()
+                time.sleep(0.1)
             except:
                 pass
         self.ffplay_process = None
@@ -501,25 +513,36 @@ class TimeAudioPlayer:
         self.kill_ff()
         cmd = [self.ff_bin, "-nodisp", "-autoexit", "-hide_banner", "-loglevel", "error", "-volume", str(vol), path]
         try:
-            self.ffplay_process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                                   creationflags=subprocess.CREATE_NO_WINDOW)
-        except Exception:
-            self.status_var.set("音频播放异常")
+            self.ffplay_process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                stdin=subprocess.PIPE,
+                creationflags=0x08000000
+            )
+        except Exception as e:
+            self.safe_status("播放失败：找不到ffplay")
 
     def play_loop(self):
         while self.is_playing and self.running:
             vol, slot = self.switch_playlist()
             if not self.current_playlist:
-                self.status_var.set("当前时段无音频")
+                self.safe_status("当前时段无音频文件")
                 self.clear_all_select()
                 time.sleep(1)
                 continue
             song = self.current_playlist[self.current_index]
-            self.status_var.set("▶ {} | 音量:{}%".format(os.path.basename(song), vol))
-            self.root.after(0, lambda: self.set_highlight(slot, self.current_index))
+            name = os.path.basename(song)
+            self.safe_status(f"▶ {name} | 音量:{vol}%")
+
+            try:
+                self.root.after(0, lambda s=slot, i=self.current_index: self.set_highlight(s, i))
+            except:
+                pass
+
             self.play_song(song, vol)
             while self.ffplay_process and self.ffplay_process.poll() is None and self.is_playing and self.running:
-                time.sleep(0.3)
+                time.sleep(0.2)
             self.current_index = (self.current_index + 1) % len(self.current_playlist)
         self.kill_ff()
         self.clear_all_select()
@@ -531,7 +554,9 @@ class TimeAudioPlayer:
         self.is_playing = True
         self.btn_start.config(state="disabled")
         self.btn_stop.config(state="normal")
-        threading.Thread(target=self.play_loop, daemon=True).start()
+        t = threading.Thread(target=self.play_loop)
+        t.daemon = True
+        t.start()
 
     def stop_play(self):
         self.is_playing = False
@@ -539,16 +564,22 @@ class TimeAudioPlayer:
         self.clear_all_select()
         self.btn_start.config(state="normal")
         self.btn_stop.config(state="disabled")
-        self.status_var.set("⏹ 已停止")
-        self.status.config(fg="#C53030")
+        self.safe_status("⏹ 已停止播放")
+        try:
+            self.status.config(fg="#C53030")
+        except:
+            pass
 
     def time_detect_loop(self):
         while self.running:
-            new_slot = self.get_now_slot()
-            if self.is_playing and new_slot != self._last_slot:
-                self._last_slot = new_slot
-                self.current_index = 0
-                self.kill_ff()
+            try:
+                new_slot = self.get_now_slot()
+                if self.is_playing and new_slot != self._last_slot:
+                    self._last_slot = new_slot
+                    self.current_index = 0
+                    self.kill_ff()
+            except:
+                pass
             time.sleep(1)
 
 
