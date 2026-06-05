@@ -21,7 +21,7 @@ jobs:
           curl -L -o ffplay.exe https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffplay-master-latest-win64-gpl.exe
 
       - name: Build
-        run: pyinstaller -wF "3时段定时播放器.py"
+        run: pyinstaller -wF "1时段定时播放器.py"
 
       - uses: actions/upload-artifact@v4
         with:
