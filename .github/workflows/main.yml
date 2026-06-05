@@ -17,12 +17,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install pyqt5 pyinstaller
 
-      - name: Download ffplay.exe
-        run: |
-          Invoke-WebRequest -Uri "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip" -OutFile ffmpeg.zip
-          Expand-Archive ffmpeg.zip
-          Copy-Item ./ffmpeg-master-latest-win64-gpl/bin/ffplay.exe ./ffplay.exe
-
       - name: Build single exe
         run: |
           pyinstaller -wF "1时段定时播放器.py"
