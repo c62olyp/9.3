@@ -3,6 +3,8 @@ on: push
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true  # 解决Node.js 20警告
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -19,7 +21,8 @@ jobs:
 
       - name: Build single exe
         run: |
-          pyinstaller -wF "1时段定时播放器.py"
+          # 重点：把下面的文件名改成你仓库里实际的Python文件名（复制粘贴！）
+          pyinstaller -F "1时段定时播放器.py" --hidden-import PyQt5.sip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
